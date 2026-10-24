@@ -44,8 +44,6 @@ set(PROJECT_SOURCES
     src/overlay.cpp
     src/renderer.cpp
     src/memory.cpp
-    src/rbx.cpp
-    src/autodive.cpp
 )
 
 add_executable(${PROJECT_NAME} WIN32
@@ -58,7 +56,7 @@ add_executable(${PROJECT_NAME} WIN32
 # -------------------------------------------------------------------
 target_include_directories(${PROJECT_NAME} PRIVATE
     include/
-    ${CMAKE_SOURCE_DIR}          # para offsets.h na raiz
+    ${CMAKE_SOURCE_DIR}          # para offsets.h na raiz (removido, mas mantido por segurança)
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
 )
@@ -74,35 +72,55 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 # -------------------------------------------------------------------
-# Compiler flags — MSVC x64 Release
+# Compiler flags — Detecta MSVC vs MinGW/GCC
 # -------------------------------------------------------------------
-target_compile_options(${PROJECT_NAME} PRIVATE
-    /W3          # warnings padrão
-    /MP          # compilação paralela
-    /EHsc        # C++ exceptions
-    $<$<CONFIG:Release>:/O2>          # otimização máxima
-    $<$<CONFIG:Release>:/Oi>          # intrinsics
-    $<$<CONFIG:Release>:/GL>          # whole program optimization
-    $<$<CONFIG:Release>:/GS->         # desativa stack security cookie (menor overhead)
-    $<$<CONFIG:Release>:/Gy>          # function-level linking
-    $<$<CONFIG:Debug>:/Od>            # sem otimização no Debug
-    $<$<CONFIG:Debug>:/Zi>            # debug info completo
-)
-
-# -------------------------------------------------------------------
-# Linker flags — x64 Release
-# -------------------------------------------------------------------
-target_link_options(${PROJECT_NAME} PRIVATE
-    /SUBSYSTEM:WINDOWS              # sem console window
-    /MACHINE:X64                    # garante x64
-    /MANIFEST:EMBED                 # embute o manifesto no .exe
-    /MANIFESTUAC:NO                 # desativa UAC padrão do MSBuild (evita conflito de level)
-    /MANIFESTINPUT:${CMAKE_SOURCE_DIR}/rss-external.manifest  # UAC requireAdministrator
-    $<$<CONFIG:Release>:/LTCG>      # link-time code generation (combina com /GL)
-    $<$<CONFIG:Release>:/OPT:REF>   # remove funções não referenciadas
-    $<$<CONFIG:Release>:/OPT:ICF>   # mescla funções idênticas
-    $<$<CONFIG:Debug>:/DEBUG:FULL>  # PDB completo no Debug
-)
+if(MSVC)
+    # MSVC (Visual Studio)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /W3          # warnings padrão
+        /MP          # compilação paralela
+        /EHsc        # C++ exceptions
+        $<$<CONFIG:Release>:/O2>          # otimização máxima
+        $<$<CONFIG:Release>:/Oi>          # intrinsics
+        $<$<CONFIG:Release>:/GL>          # whole program optimization
+        $<$<CONFIG:Release>:/GS->         # desativa stack security cookie
+        $<$<CONFIG:Release>:/Gy>          # function-level linking
+        $<$<CONFIG:Debug>:/Od>            # sem otimização no Debug
+        $<$<CONFIG:Debug>:/Zi>            # debug info completo
+    )
+    
+    # Linker flags MSVC
+    target_link_options(${PROJECT_NAME} PRIVATE
+        /SUBSYSTEM:WINDOWS
+        /MACHINE:X64
+        /MANIFEST:EMBED
+        /MANIFESTUAC:NO
+        /MANIFESTINPUT:${CMAKE_SOURCE_DIR}/rss-external.manifest
+        $<$<CONFIG:Release>:/LTCG>
+        $<$<CONFIG:Release>:/OPT:REF>
+        $<$<CONFIG:Release>:/OPT:ICF>
+        $<$<CONFIG:Debug>:/DEBUG:FULL>
+    )
+else()
+    # MinGW/GCC (w64devkit)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -Wall
+        -Wextra
+        -mwindows
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:Release>:-march=native>
+        $<$<CONFIG:Debug>:-O0>
+        $<$<CONFIG:Debug>:-g>
+    )
+    
+    # Linker flags MinGW
+    target_link_options(${PROJECT_NAME} PRIVATE
+        -mwindows
+        -static
+        -static-libgcc
+        -static-libstdc++
+    )
+endif()
 
 # -------------------------------------------------------------------
 # Define NDEBUG em Release (desativa asserts)
@@ -115,10 +133,10 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 )
 
 # -------------------------------------------------------------------
-# Output: coloca o .exe direto em build/Release/ ou build/Debug/
+# Output: coloca o .exe direto em build/
 # -------------------------------------------------------------------
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/Debug"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}"
 )
